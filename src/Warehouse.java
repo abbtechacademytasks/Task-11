@@ -63,7 +63,8 @@ public class Warehouse {
     }
 
     private void incrementFailureCount(String customerId) {
-        unSuccessfulOrdersCount.put(customerId, unSuccessfulOrdersCount.getOrDefault(customerId, 0) + 1);
+        unSuccessfulOrdersCount.put(customerId,
+                unSuccessfulOrdersCount.getOrDefault(customerId, 0) + 1);
     }
 
     private int getFailureCount(String customerId) {
