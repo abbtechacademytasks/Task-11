@@ -1,6 +1,8 @@
+package Exceptions;
+
 import java.time.LocalDateTime;
 
-abstract class WarehouseException extends Exception {
+public abstract class WarehouseException extends Exception {
     private final String errorCode;
     private final LocalDateTime timestamp;
 

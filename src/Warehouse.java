@@ -1,10 +1,17 @@
+import Enums.OrderStatus;
+import Exceptions.*;
+import Models.*;
+import Utils.LogFileWriter;
+
 import java.util.*;
 
 public class Warehouse {
     private final Map<String, Product> products = new HashMap<>();
     private final Queue<Order> orderQueue = new ArrayDeque<>();
-    private final TreeSet<Order> completedOrders = new TreeSet<>(Comparator.comparing(Order::getCreatedAt)
-            .thenComparing(Order::getId));
+    private final TreeSet<Order> completedOrders =
+            new TreeSet<>(Comparator.comparing(Order::getStatus)
+                .thenComparing(Order::getCreatedAt)
+                    .thenComparing(Order::getId));
     private final List<String> logs = new ArrayList<>();
     private final PriorityQueue<Product> productQueue = new PriorityQueue<>(Comparator.comparing(Product::getStock));
     private final Map<String, Integer> unSuccessfulOrdersCount = new HashMap<>();
@@ -15,11 +22,10 @@ public class Warehouse {
         try (WarehouseConnection conn = new WarehouseConnection()) {
             // 1. Sifarişdəki hər productId üçün yoxlama
             for (Map.Entry<String, Integer> entry : order.getItems().entrySet()) {
-                Product product = products.get(entry.getKey());
-                if (product == null) {
-                    throw new InvalidOrderException(
-                            "Məhsul tapılmadı: " + entry.getKey(), "ERR_404");
-                }
+                Product product =
+                        findProduct(entry.getKey()).orElseThrow(() -> new InvalidOrderException(
+                        "Məhsul tapılmadı: " + entry.getKey(), "ERR_404"));
+
                 if (product.getStock() < entry.getValue()) {
                     throw new ProductOutOfStockException(
                             "Stok kifayət etmir: " + product.getName(), "ERR_STOCK");
@@ -41,7 +47,7 @@ public class Warehouse {
 
         } catch (ProductOutOfStockException e) {
             // Nested try-catch nümunəsi: səbəbi araşdırıb, əgər 3-cü ardıcıl xətadırsa
-            // CriticalSystemFailureException kimi "wrap" et
+            // Exceptions.CriticalSystemFailureException kimi "wrap" et
             incrementFailureCount(order.getCustomerId());
             if (getFailureCount(order.getCustomerId()) >= 3) {
                 throw new CriticalSystemFailureException(
@@ -58,8 +64,11 @@ public class Warehouse {
                 order.setStatus(OrderStatus.FAILED);
                 logs.add("Order failed: " + order.getId());
             }
-
         }
+    }
+
+    private Optional<Product> findProduct(String productId) {
+        return Optional.ofNullable(products.get(productId));
     }
 
     private void incrementFailureCount(String customerId) {
@@ -90,5 +99,19 @@ public class Warehouse {
 
     boolean isOrderQueueEmpty() {
         return orderQueue.isEmpty();
+    }
+
+    void writeLogsToFile(String filePath) throws FileErrorException {
+        LogFileWriter.writeLogs(filePath, logs);
+    }
+
+    void printLowestStock() {
+        PriorityQueue<Product> copy = new PriorityQueue<>(productQueue);
+
+        while (!copy.isEmpty() && copy.peek().getStock() < 5) {
+            Product product = copy.remove();
+
+            System.out.println("Aşağı stok: " + product.getName() + " - " + product.getStock());
+        }
     }
 }

@@ -1,14 +1,25 @@
+import Exceptions.*;
+import Interfaces.WarehouseOperation;
+import Models.Order;
+import Models.OrderResult;
+import Models.Product;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 public class Main {
     public static void main(String[] args) {
+        Warehouse warehouse = new Warehouse();
+        createTestProducts(warehouse);
         List<Order> orders = createTestOrders(); // 6-7 fərqli ssenari
         List<OrderResult> results = new ArrayList<>();
-        Warehouse warehouse = new Warehouse();
 
-        createTestProducts(warehouse);
+        try (WarehouseConnection connection = new WarehouseConnection(true)) {
+            connection.executeQuery("test query");
+        } catch (WarehouseConnectionException e) {
+            System.out.println("Connection test: " + e.getMessage());
+        }
 
         for (Order order : orders) {
             warehouse.addOrder(order);
@@ -31,6 +42,17 @@ public class Main {
                 System.out.println("Sifariş " + order.getId() + " emal edildi.");
             }
         }
+
+        WarehouseOperation warehouseOperation =
+                () -> warehouse.writeLogsToFile("warehouse_log.txt");
+
+        try {
+            warehouseOperation.execute();
+        } catch (WarehouseException e) {
+            System.out.println("Log yazma xətası: " + e.getMessage());
+        }
+
+        warehouse.printLowestStock();
     }
 
     static void createTestProducts(Warehouse warehouse) {
@@ -59,7 +81,7 @@ public class Main {
                 Map.of("P008", 1))); // Out of stock
 
         orders.add(new Order("O005", "C003",
-                Map.of("P005", 20))); // Out of stock + CriticalSystemFailureException
+                Map.of("P005", 20))); // Out of stock + Exceptions.CriticalSystemFailureException
 
         orders.add(new Order("O006", "C007",
                 Map.of("P009", 1))); // Invalid product

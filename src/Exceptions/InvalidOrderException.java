@@ -1,3 +1,5 @@
+package Exceptions;
+
 public class InvalidOrderException extends WarehouseException{
     public InvalidOrderException(String message, String errorCode) {
         super(message, errorCode);

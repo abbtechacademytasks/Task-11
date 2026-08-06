@@ -1,9 +1,15 @@
+import Exceptions.WarehouseConnectionException;
+
 import java.util.Random;
 
 class WarehouseConnection implements AutoCloseable {
     public WarehouseConnection() throws WarehouseConnectionException {
+        this(false);
+    }
+
+    public WarehouseConnection(boolean forceFailure) throws WarehouseConnectionException {
         Random random = new Random();
-        if (random.nextInt(100) < 10) {
+        if (forceFailure || random.nextInt(100) < 10) {
             throw new WarehouseConnectionException("Failed to connect to warehouse.", "CONNECTION_ERROR", new RuntimeException("Simulated connection failure."));
         }
     }
@@ -14,6 +20,6 @@ class WarehouseConnection implements AutoCloseable {
 
     @Override
     public void close() {
-        System.out.println("Closing warehouse connection."); 
+        System.out.println("Closing warehouse connection.");
     }
 }

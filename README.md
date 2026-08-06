@@ -6,16 +6,16 @@ Java tapşırığı — Exception Hierarchy, Resurs İdarəetməsi və Collectio
 Bir e-ticarət anbarının sifarişləri ardıcıl (sequential) şəkildə emal edən sistemini yazın. Sistem çoxsəviyyəli exception hierarchy, resurs idarəetməsi, müxtəlif collection-lar üzərində qurulmalıdır.
 1-ci addım: Exception Hierarchy (çoxsəviyyəli)
 Abstract base exception yaradın:
-abstract class WarehouseException extends Exception {
+abstract class Exceptions.WarehouseException extends Exception {
 private final String errorCode;
 private final LocalDateTime timestamp;
 
-    public WarehouseException(String message, String errorCode) {
+    public Exceptions.WarehouseException(String message, String errorCode) {
         super(message);
         this.errorCode = errorCode;
         this.timestamp = LocalDateTime.now();
     }
-    public WarehouseException(String message, String errorCode, Throwable cause) {
+    public Exceptions.WarehouseException(String message, String errorCode, Throwable cause) {
         super(message, cause); // exception chaining
         this.errorCode = errorCode;
         this.timestamp = LocalDateTime.now();
@@ -24,19 +24,19 @@ private final LocalDateTime timestamp;
     public LocalDateTime getTimestamp() { return timestamp; }
 }
 Bundan miras alan checked exception-lar:
-class ProductOutOfStockException extends WarehouseException { ... }
-class InvalidOrderException extends WarehouseException { ... }
-class WarehouseConnectionException extends WarehouseException { ... }
+class Exceptions.ProductOutOfStockException extends Exceptions.WarehouseException { ... }
+class Exceptions.InvalidOrderException extends Exceptions.WarehouseException { ... }
+class Exceptions.WarehouseConnectionException extends Exceptions.WarehouseException { ... }
 Bir unchecked (RuntimeException) exception:
-class CriticalSystemFailureException extends RuntimeException {
-public CriticalSystemFailureException(String message, Throwable cause) {
+class Exceptions.CriticalSystemFailureException extends RuntimeException {
+public Exceptions.CriticalSystemFailureException(String message, Throwable cause) {
 super(message, cause); // başqa exception-ı "wrap" edir
 }
 }
-Tələb: Bir sifarişin emalı zamanı 2-dən çox exception ardıcıl baş verərsə, sonuncusu tutulub CriticalSystemFailureException kimi yenidən atılmalı (cause saxlanılmaqla).
+Tələb: Bir sifarişin emalı zamanı 2-dən çox exception ardıcıl baş verərsə, sonuncusu tutulub Exceptions.CriticalSystemFailureException kimi yenidən atılmalı (cause saxlanılmaqla).
 2-ci addım: Resurs idarəetməsi (AutoCloseable)
 class WarehouseConnection implements AutoCloseable {
-public WarehouseConnection() throws WarehouseConnectionException {
+public WarehouseConnection() throws Exceptions.WarehouseConnectionException {
 // 10% ehtimalla qoşulma xətası simulyasiyası (Random ilə)
 }
 public void executeQuery(String query) { ... }
@@ -45,87 +45,87 @@ public void close() { System.out.println("Bağlantı bağlanıldı."); }
 }
 Bunu try-with-resources ilə istifadə edin.
 3-cü addım: Model sinifləri
-class Product {
+class Models.Product {
 String id, name;
 int stock;
 double price;
 }
 
-class Order {
+class Models.Order {
 String id, customerId;
 Map<String, Integer> items; // productId -> miqdar
-OrderStatus status; // enum: PENDING, PROCESSING, COMPLETED, FAILED
+Enums.OrderStatus status; // enum: PENDING, PROCESSING, COMPLETED, FAILED
 LocalDateTime createdAt;
 }
 4-cü addım: Collection-ları birgə istifadə edin
 Warehouse sinfi daxilində:
 Collection
 Məqsəd
-Map<String, Product> (HashMap)
+Map<String, Models.Product> (HashMap)
 Məhsulları ID-yə görə saxlamaq
-Queue<Order> (LinkedList / ArrayDeque)
+Queue<Models.Order> (LinkedList / ArrayDeque)
 Emal gözləyən sifarişlər növbəsi (FIFO)
-TreeSet<Order> + Comparator
+TreeSet<Models.Order> + Comparator
 Tamamlanmış sifarişləri tarixə görə sıralı saxlamaq
 List<String>
 Log tarixçəsi
-PriorityQueue<Product>
+PriorityQueue<Models.Product>
 Stoku ən az olan məhsulları prioritetləşdirmək
 Map<String, Integer>
 Hər müştərinin uğursuz sifariş sayını izləmək (statistika)
 
 5-ci addım: Sifariş emalı metodu
-OrderResult processOrder(Order order) throws InvalidOrderException,
-ProductOutOfStockException, WarehouseConnectionException {
+Models.OrderResult processOrder(Models.Order order) throws Exceptions.InvalidOrderException,
+Exceptions.ProductOutOfStockException, Exceptions.WarehouseConnectionException {
 
     try (WarehouseConnection conn = new WarehouseConnection()) {
         // 1. Sifarişdəki hər productId üçün yoxlama
         for (Map.Entry<String, Integer> entry : order.getItems().entrySet()) {
-            Product product = products.get(entry.getKey());
+            Models.Product product = products.get(entry.getKey());
             if (product == null) {
-                throw new InvalidOrderException(
+                throw new Exceptions.InvalidOrderException(
                     "Məhsul tapılmadı: " + entry.getKey(), "ERR_404");
             }
             if (product.getStock() < entry.getValue()) {
-                throw new ProductOutOfStockException(
+                throw new Exceptions.ProductOutOfStockException(
                     "Stok kifayət etmir: " + product.getName(), "ERR_STOCK");
             }
         }
         // 2. Stoku azalt, sifarişi tamamla, log-a yaz
         ...
-        return new OrderResult(order.getId(), true, null);
+        return new Models.OrderResult(order.getId(), true, null);
  
-    } catch (ProductOutOfStockException e) {
+    } catch (Exceptions.ProductOutOfStockException e) {
         // Nested try-catch nümunəsi: səbəbi araşdırıb, əgər 3-cü ardıcıl xətadırsa
-        // CriticalSystemFailureException kimi "wrap" et
+        // Exceptions.CriticalSystemFailureException kimi "wrap" et
         incrementFailureCount(order.getCustomerId());
         if (getFailureCount(order.getCustomerId()) >= 3) {
-            throw new CriticalSystemFailureException(
+            throw new Exceptions.CriticalSystemFailureException(
                 "Müştəri üçün kritik xəta həddi aşıldı: " + order.getCustomerId(), e);
         }
         throw e; // yenidən at, yuxarıda tutulsun
     }
 }
-Tələb: processOrder() çağırılarkən həm ayrıca catch, həm də multi-catch (InvalidOrderException | WarehouseConnectionException) nümunələri göstərilməli.
+Tələb: processOrder() çağırılarkən həm ayrıca catch, həm də multi-catch (Exceptions.InvalidOrderException | Exceptions.WarehouseConnectionException) nümunələri göstərilməli.
 6-cı addım: finally bloku
 Hər sifariş emalından sonra, nəticədən asılı olmayaraq:
 Log-a (List<String>) nəticə yazılmalı
 Sifarişin statusu yenilənməli (COMPLETED / FAILED)
 7-ci addım: main() metodunda test ssenariləri
 Sifarişləri ardıcıl (for dövrü ilə) emal edən kod yazın:
-List<Order> orders = createTestOrders(); // 6-7 fərqli ssenari
-List<OrderResult> results = new ArrayList<>();
+List<Models.Order> orders = createTestOrders(); // 6-7 fərqli ssenari
+List<Models.OrderResult> results = new ArrayList<>();
 
-for (Order order : orders) {
+for (Models.Order order : orders) {
 try {
-OrderResult result = warehouse.processOrder(order);
+Models.OrderResult result = warehouse.processOrder(order);
 results.add(result);
-} catch (CriticalSystemFailureException e) {
+} catch (Exceptions.CriticalSystemFailureException e) {
 System.out.println("KRİTİK XƏTA: " + e.getMessage());
 System.out.println("Əsl səbəb: " + e.getCause().getMessage());
-} catch (InvalidOrderException | WarehouseConnectionException e) {
+} catch (Exceptions.InvalidOrderException | Exceptions.WarehouseConnectionException e) {
 System.out.println("Xəta: " + e.getMessage());
-} catch (ProductOutOfStockException e) {
+} catch (Exceptions.ProductOutOfStockException e) {
 System.out.println("Stok xətası: " + e.getMessage());
 } finally {
 System.out.println("Sifariş " + order.getId() + " emal edildi.");
@@ -133,12 +133,12 @@ System.out.println("Sifariş " + order.getId() + " emal edildi.");
 }
 Test ssenariləri belə seçilsin ki:
 Normal sifariş → uğurla tamamlanır
-Mövcud olmayan məhsul → InvalidOrderException
-Stok kifayət etmir → ProductOutOfStockException
-Bağlantı xətası → WarehouseConnectionException
-Eyni müştərinin ardıcıl 3 uğursuz sifarişi → CriticalSystemFailureException (getCause() ilə əsl səbəb göstərilsin)
+Mövcud olmayan məhsul → Exceptions.InvalidOrderException
+Stok kifayət etmir → Exceptions.ProductOutOfStockException
+Bağlantı xətası → Exceptions.WarehouseConnectionException
+Eyni müştərinin ardıcıl 3 uğursuz sifarişi → Exceptions.CriticalSystemFailureException (getCause() ilə əsl səbəb göstərilsin)
 Bonus tapşırıqlar
-Optional<Product> istifadə edərək məhsul axtarışını null-safe edin (findProduct(String id): Optional<Product>).
+Optional<Models.Product> istifadə edərək məhsul axtarışını null-safe edin (findProduct(String id): Optional<Models.Product>).
 Comparator.comparing().thenComparing() ilə tamamlanmış sifarişləri həm statusa, həm tarixə görə sıralayın.
 Bütün log-u fayla (try-with-resources + FileWriter) yazan metod əlavə edin — bu da resurs idarəetməsini gücləndirir.
 PriorityQueue-dan istifadə edərək "stoku 5-dən az olan məhsullar" siyahısını çap edən metod yazın.

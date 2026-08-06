@@ -1,4 +1,6 @@
-class Product {
+package Models;
+
+public class Product {
     private final String id, name;
     private int stock;
     private final double price;

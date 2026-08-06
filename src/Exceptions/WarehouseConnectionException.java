@@ -1,3 +1,5 @@
+package Exceptions;
+
 public class WarehouseConnectionException extends WarehouseException {
     public WarehouseConnectionException(String message, String errorCode) {
         super(message, errorCode);
